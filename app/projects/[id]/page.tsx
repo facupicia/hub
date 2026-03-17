@@ -1,42 +1,105 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Edit2, ExternalLink, Github, Play, Image as ImageIcon, FileText, Clock } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Github, Pencil, Trash2, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card'
 import { Badge } from '@/components/Badge'
-import { Card, CardContent } from '@/components/Card'
+import { AssetUploader } from '@/components/AssetUploader'
+import { getProjectById, getAssetsByProjectId, getContentIdeasByProjectId, deleteProject, type Project, type Asset, type ContentIdea } from '@/lib/supabase'
 
-// Mock data
-const project = {
-  id: 1,
-  name: 'Content Factory',
-  description: 'Portfolio + fábrica de contenido personal. Transforma proyectos en clips virales automáticamente. Genera contenido para TikTok, Reels y Shorts sin esfuerzo.',
-  stack: ['Next.js', 'TypeScript', 'Tailwind', 'Framer Motion', 'PostgreSQL'],
-  status: 'En progreso',
-  githubUrl: 'https://github.com/facupicia/content-factory',
-  liveUrl: 'https://content-factory.vercel.app',
-  createdAt: '2024-03-15',
-  assets: [
-    { id: 1, name: 'demo-hero.mp4', type: 'video', size: '12.5 MB', duration: '0:45' },
-    { id: 2, name: 'screenshot-dashboard.png', type: 'image', size: '2.1 MB' },
-    { id: 3, name: 'code-snippet.tsx', type: 'code', size: '4.2 KB' },
-  ],
-  contentQueue: [
-    { id: 1, title: 'Demo del hero section', format: 'TikTok', status: 'ready' },
-    { id: 2, title: 'Behind the scenes: Arquitectura', format: 'Reels', status: 'pending' },
-  ],
-}
+export default function ProjectPage({ params }: { params: { id: string } }) {
+  const router = useRouter()
+  const [project, setProject] = useState<Project | null>(null)
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [ideas, setIdeas] = useState<ContentIdea[]>([])
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
 
-export default function ProjectDetailPage({ params }: { params: { id: string } }) {
+  useEffect(() => {
+    loadProject()
+  }, [params.id])
+
+  async function loadProject() {
+    try {
+      setLoading(true)
+      const [projectData, assetsData, ideasData] = await Promise.all([
+        getProjectById(params.id),
+        getAssetsByProjectId(params.id),
+        getContentIdeasByProjectId(params.id),
+      ])
+      
+      if (!projectData) {
+        router.push('/projects')
+        return
+      }
+      
+      setProject(projectData)
+      setAssets(assetsData)
+      setIdeas(ideasData)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm('¿Estás seguro de eliminar este proyecto?')) return
+    
+    try {
+      setDeleting(true)
+      await deleteProject(params.id)
+      router.push('/projects')
+      router.refresh()
+    } catch (err) {
+      console.error(err)
+      setDeleting(false)
+    }
+  }
+
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'completed': return 'success'
+      case 'in-progress': return 'accent'
+      default: return 'default'
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'completed': return 'Completado'
+      case 'in-progress': return 'En progreso'
+      default: return 'Borrador'
+    }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen px-6 py-12 pb-32 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="flex h-64 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!project) return null
+
   return (
     <main className="min-h-screen px-6 py-12 pb-32 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-4xl">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-        >n          <Link
+        >
+          <Link
             href="/projects"
             className="inline-flex items-center gap-2 text-sm text-gray-400 transition hover:text-white"
           >
@@ -44,182 +107,193 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             Volver a proyectos
           </Link>
           
-          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-4xl font-bold">{project.name}</h1>
-                <Badge variant={project.status === 'En progreso' ? 'warning' : 'success'}>
-                  {project.status}
+                <h1 className="text-3xl font-bold">{project.name}</h1>
+                <Badge variant={getStatusVariant(project.status)}>
+                  {getStatusLabel(project.status)}
                 </Badge>
               </div>
-              <p className="mt-3 max-w-2xl text-gray-400">{project.description}</p>
-              
-              <div className="mt-4 flex flex-wrap gap-2">
-                {project.stack.map((tech) => (
-                  <span
-                    key={tech}
-                    className="rounded-full bg-gray-800 px-3 py-1 text-sm text-gray-300"
-                  >
-                    {tech}
-                  </span>
-                ))}
-              </div>
+              <p className="mt-2 text-gray-400">{project.description}</p>
             </div>
             
-            <div className="flex gap-3">
-              <Link href={`/projects/${params.id}/edit`}>
-                <Button variant="secondary">
-                  <Edit2 className="h-4 w-4" />
+            <div className="flex gap-2">
+              <Link href={`/projects/${project.id}/edit`}>
+                <Button variant="secondary" size="sm">
+                  <Pencil className="h-4 w-4" />
                   Editar
                 </Button>
               </Link>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                <Trash2 className="h-4 w-4 text-red-400" />
+              </Button>
             </div>
           </div>
 
           {/* Links */}
-          <div className="mt-6 flex gap-4">
-            {project.githubUrl && (
+          <div className="mt-4 flex flex-wrap gap-3">
+            {project.project_url && (
               <a
-                href={project.githubUrl}
+                href={project.project_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-gray-400 transition hover:text-white"
+                className="inline-flex items-center gap-2 rounded-full bg-gray-800 px-4 py-2 text-sm transition hover:bg-gray-700"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Ver proyecto
+              </a>
+            )}
+            {project.repo_url && (
+              <a
+                href={project.repo_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-gray-800 px-4 py-2 text-sm transition hover:bg-gray-700"
               >
                 <Github className="h-4 w-4" />
                 Ver código
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-            {project.liveUrl && (
-              <a
-                href={project.liveUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-gray-400 transition hover:text-white"
-              >
-                <Play className="h-4 w-4" />
-                Demo en vivo
-                <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
         </motion.div>
 
-        {/* Grid */}
-        <div className="mt-10 grid gap-6 lg:grid-cols-3">
-          {/* Assets Column */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="lg:col-span-2 space-y-6"
-          >
-            <Card>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Assets</h2>
-                <Button variant="ghost" size="sm">
-                  + Agregar
-                </Button>
-              </div>
-              <CardContent className="mt-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {project.assets.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="group flex items-center gap-3 rounded-xl bg-gray-800/50 p-3 transition hover:bg-gray-800"
-                    >
-                      <div className="rounded-lg bg-gray-700 p-2">
-                        {asset.type === 'video' && <Play className="h-4 w-4 text-accent" />}
-                        {asset.type === 'image' && <ImageIcon className="h-4 w-4 text-green-400" />}
-                        {asset.type === 'code' && <FileText className="h-4 w-4 text-yellow-400" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate text-sm font-medium">{asset.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {asset.size}
-                          {asset.duration && ` • ${asset.duration}`}
-                        </p>
-                      </div>
+        {/* Content Grid */}
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Description */}
+            {project.full_description && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Sobre el proyecto</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="prose prose-invert max-w-none">
+                      {project.full_description.split('\n').map((paragraph, i) => (
+                        <p key={i} className="text-gray-300">{paragraph}</p>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
 
-            {/* Generate Content CTA */}
-            <Card className="bg-gradient-to-br from-accent/10 to-purple-900/10 border-accent/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Generar contenido</h3>
-                  <p className="mt-1 text-sm text-gray-400">
-                    Creá clips para TikTok, Reels y Shorts automáticamente
-                  </p>
-                </div>
-                <Link href="/engine">
-                  <Button>
-                    <Play className="h-4 w-4" />
-                    Empezar
-                  </Button>
-                </Link>
-              </div>
-            </Card>
-          </motion.div>
+            {/* Assets */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Assets</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <AssetUploader />
+                  
+                  {assets.length > 0 && (
+                    <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                      {assets.map((asset) => (
+                        <div
+                          key={asset.id}
+                          className="flex items-center gap-3 rounded-xl bg-gray-800 p-3"
+                        >
+                          <div className="rounded-lg bg-gray-700 p-2">
+                            {asset.type === 'image' ? '🖼️' : asset.type === 'video' ? '🎥' : '📄'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate text-sm font-medium">{asset.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {(asset.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
 
           {/* Sidebar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-6"
-          >
-            <Card>
-              <h2 className="text-lg font-semibold">Cola de contenido</h2>
-              <CardContent className="mt-4">
-                {project.contentQueue.length > 0 ? (
-                  <div className="space-y-3">
-                    {project.contentQueue.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-3 rounded-xl bg-gray-800/50 p-3"
-                      >
-                        <div className={`rounded-full p-1.5 ${
-                          item.status === 'ready' ? 'bg-green-500/20' : 'bg-yellow-500/20'
-                        }`}>
-                          <Clock className={`h-3 w-3 ${
-                            item.status === 'ready' ? 'text-green-400' : 'text-yellow-400'
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{item.title}</p>
-                          <p className="text-xs text-gray-500">{item.format}</p>
-                        </div>
-                      </div>
+          <div className="space-y-6">
+            {/* Stack */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Stack</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {project.stack?.map((tech) => (
+                      <Badge key={tech} variant="default">
+                        {tech}
+                      </Badge>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    No hay contenido en cola. Generá tu primer clip desde el Engine Room.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
 
-            <Card>
-              <h2 className="text-lg font-semibold">Estadísticas</h2>
-              <CardContent className="mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-gray-800/50 p-4 text-center">
-                    <p className="text-2xl font-bold text-accent">{project.assets.length}</p>
-                    <p className="text-xs text-gray-500">Assets</p>
-                  </div>
-                  <div className="rounded-xl bg-gray-800/50 p-4 text-center">
-                    <p className="text-2xl font-bold text-accent">{project.contentQueue.length}</p>
-                    <p className="text-xs text-gray-500">En cola</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+            {/* Content Ideas */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ideas de contenido</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {ideas.length === 0 ? (
+                    <p className="text-sm text-gray-500">
+                      No hay ideas aún. Agregá ideas desde el Engine Room.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {ideas.slice(0, 5).map((idea) => (
+                        <div
+                          key={idea.id}
+                          className="rounded-lg bg-gray-800 p-3"
+                        >
+                          <p className="text-sm font-medium">{idea.title}</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <Badge 
+                              variant={
+                                idea.status === 'published' ? 'success' : 
+                                idea.status === 'in-production' ? 'accent' : 'default'
+                              }
+                              className="text-xs"
+                            >
+                              {idea.status}
+                            </Badge>
+                            <span className="text-xs text-gray-500">{idea.type}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
         </div>
       </div>
     </main>

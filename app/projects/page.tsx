@@ -1,62 +1,79 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, ExternalLink, Clock, CheckCircle, PauseCircle } from 'lucide-react'
+import { Plus, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
+import { Button } from '@/components/Button'
 import { Card, CardContent } from '@/components/Card'
 import { Badge } from '@/components/Badge'
-
-const projects = [
-  {
-    id: 1,
-    name: 'Content Factory',
-    description: 'Portfolio + fábrica de contenido personal. Transforma proyectos en clips virales.',
-    stack: ['Next.js', 'TypeScript', 'Tailwind', 'Framer Motion'],
-    status: 'En progreso',
-    assetsCount: 5,
-    contentCount: 2,
-    updatedAt: 'Hace 2 horas',
-  },
-  {
-    id: 2,
-    name: 'Task Manager Pro',
-    description: 'App de gestión de tareas con drag & drop, colaboración en tiempo real y notificaciones.',
-    stack: ['React', 'Node.js', 'Socket.io', 'MongoDB'],
-    status: 'Completado',
-    assetsCount: 12,
-    contentCount: 8,
-    updatedAt: 'Hace 3 días',
-  },
-  {
-    id: 3,
-    name: 'Crypto Dashboard',
-    description: 'Dashboard de criptomonedas con precios en tiempo real, gráficos y alertas personalizadas.',
-    stack: ['Vue.js', 'Python', 'FastAPI', 'PostgreSQL'],
-    status: 'Mantenimiento',
-    assetsCount: 8,
-    contentCount: 4,
-    updatedAt: 'Hace 1 semana',
-  },
-  {
-    id: 4,
-    name: 'AI Image Generator',
-    description: 'Generador de imágenes con IA usando Stable Diffusion y fine-tuning personalizado.',
-    stack: ['Python', 'PyTorch', 'FastAPI', 'React'],
-    status: 'En progreso',
-    assetsCount: 3,
-    contentCount: 0,
-    updatedAt: 'Hace 5 días',
-  },
-]
-
-const statusConfig = {
-  'En progreso': { icon: Clock, variant: 'warning' as const },
-  'Completado': { icon: CheckCircle, variant: 'success' as const },
-  'Mantenimiento': { icon: PauseCircle, variant: 'accent' as const },
-  'Archivado': { icon: PauseCircle, variant: 'default' as const },
-}
+import { getProjects, type Project } from '@/lib/supabase'
 
 export default function ProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadProjects()
+  }, [])
+
+  async function loadProjects() {
+    try {
+      setLoading(true)
+      const data = await getProjects()
+      setProjects(data)
+    } catch (err) {
+      setError('Error cargando proyectos')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'completed': return 'success'
+      case 'in-progress': return 'accent'
+      default: return 'default'
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'completed': return 'Completado'
+      case 'in-progress': return 'En progreso'
+      default: return 'Borrador'
+    }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen px-6 py-12 pb-32 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen px-6 py-12 pb-32 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="rounded-2xl border border-red-800 bg-red-900/20 p-8 text-center">
+            <p className="text-red-400">{error}</p>
+            <Button variant="secondary" className="mt-4" onClick={loadProjects}>
+              Reintentar
+            </Button>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen px-6 py-12 pb-32 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -64,7 +81,7 @@ export default function ProjectsPage() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div>
             <h1 className="text-4xl font-bold">Proyectos</h1>
@@ -72,79 +89,57 @@ export default function ProjectsPage() {
               Tu trabajo, organizado y listo para convertir en contenido.
             </p>
           </div>
-          <Link
-            href="/projects/new"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover"
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo Proyecto
+          <Link href="/projects/new">
+            <Button>
+              <Plus className="h-4 w-4" />
+              Nuevo Proyecto
+            </Button>
           </Link>
         </motion.div>
 
-        {/* Stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4"
-        >
-          {[
-            { label: 'Total proyectos', value: projects.length },
-            { label: 'En progreso', value: projects.filter(p => p.status === 'En progreso').length },
-            { label: 'Assets totales', value: projects.reduce((acc, p) => acc + p.assetsCount, 0) },
-            { label: 'Videos generados', value: projects.reduce((acc, p) => acc + p.contentCount, 0) },
-          ].map((stat, index) => (
-            <div
-              key={stat.label}
-              className="rounded-xl border border-gray-800 bg-gray-900/30 p-4"
-            >
-              <p className="text-2xl font-bold text-accent">{stat.value}</p>
-              <p className="text-sm text-gray-500">{stat.label}</p>
-            </div>
-          ))}
-        </motion.div>
-
         {/* Projects Grid */}
-        <div className="mt-10 grid gap-6 md:grid-cols-2">
-          {projects.map((project, index) => {
-            const StatusIcon = statusConfig[project.status as keyof typeof statusConfig].icon
-            const statusVariant = statusConfig[project.status as keyof typeof statusConfig].variant
-            
-            return (
+        {projects.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-700 bg-gray-900/30 p-16"
+          >
+            <div className="rounded-full bg-gray-800 p-4">
+              <FolderOpen className="h-8 w-8 text-gray-500" />
+            </div>
+            <h3 className="mt-4 text-lg font-medium">No hay proyectos aún</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Creá tu primer proyecto para empezar a generar contenido
+            </p>
+            <Link href="/projects/new" className="mt-6">
+              <Button>Crear Proyecto</Button>
+            </Link>
+          </motion.div>
+        ) : (
+          <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project, index) => (
               <motion.div
                 key={project.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.2 + index * 0.1 }}
+                transition={{ delay: index * 0.1 }}
               >
                 <Link href={`/projects/${project.id}`}>
                   <Card hover className="h-full">
-                    <CardContent>
+                    <CardContent className="flex h-full flex-col">
                       <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`rounded-full p-1.5 ${
-                            project.status === 'Completado' ? 'bg-green-500/20' : 
-                            project.status === 'En progreso' ? 'bg-yellow-500/20' : 'bg-gray-700/50'
-                          }`}>
-                            <StatusIcon className={`h-4 w-4 ${
-                              project.status === 'Completado' ? 'text-green-400' : 
-                              project.status === 'En progreso' ? 'text-yellow-400' : 'text-gray-400'
-                            }`} />
-                          </div>
-                          <Badge variant={statusVariant}>{project.status}</Badge>
-                        </div>
-                        <ExternalLink className="h-5 w-5 text-gray-500 transition group-hover:text-accent" />
+                        <Badge variant={getStatusVariant(project.status)}>
+                          {getStatusLabel(project.status)}
+                        </Badge>
                       </div>
-
-                      <h3 className="mt-4 text-xl font-semibold transition group-hover:text-accent">
-                        {project.name}
-                      </h3>
-                      <p className="mt-2 text-sm text-gray-400 line-clamp-2">
+                      
+                      <h3 className="mt-4 text-xl font-semibold">{project.name}</h3>
+                      <p className="mt-2 line-clamp-2 text-sm text-gray-400">
                         {project.description}
                       </p>
-
+                      
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {project.stack.slice(0, 4).map((tech) => (
+                        {project.stack?.slice(0, 4).map((tech) => (
                           <span
                             key={tech}
                             className="rounded-full bg-gray-800 px-2.5 py-1 text-xs text-gray-300"
@@ -152,44 +147,23 @@ export default function ProjectsPage() {
                             {tech}
                           </span>
                         ))}
-                        {project.stack.length > 4 && (
+                        {project.stack?.length > 4 && (
                           <span className="rounded-full bg-gray-800 px-2.5 py-1 text-xs text-gray-500">
                             +{project.stack.length - 4}
                           </span>
                         )}
                       </div>
-
-                      <div className="mt-6 flex items-center justify-between border-t border-gray-800 pt-4 text-sm text-gray-500">
-                        <div className="flex gap-4">
-                          <span>{project.assetsCount} assets</span>
-                          <span>{project.contentCount} videos</span>
-                        </div>
-                        <span>{project.updatedAt}</span>
+                      
+                      <div className="mt-auto pt-4 text-xs text-gray-500">
+                        Actualizado {new Date(project.updated_at).toLocaleDateString('es-AR')}
                       </div>
                     </CardContent>
                   </Card>
                 </Link>
               </motion.div>
-            )
-          })}
-
-          {/* Add New Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.6 }}
-          >
-            <Link href="/projects/new">
-              <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-700 bg-gray-900/30 p-6 transition hover:border-accent/50 hover:bg-gray-900/50">
-                <div className="rounded-full bg-gray-800 p-4 transition group-hover:bg-accent/20">
-                  <Plus className="h-6 w-6 text-gray-400 transition group-hover:text-accent" />
-                </div>
-                <p className="mt-4 font-medium text-gray-400">Agregar proyecto</p>
-                <p className="mt-1 text-sm text-gray-600">Empezá a generar contenido</p>
-              </div>
-            </Link>
-          </motion.div>
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   )
